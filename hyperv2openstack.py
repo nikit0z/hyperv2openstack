@@ -166,10 +166,13 @@ def upload_viostor(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, 
         vm_os_arch = 'amd64'
 
     virtio_driver_path = mnt_dir + '/' + win_driver_ver + '/' + vm_os_arch + '/viostor.sys'
-    # try except here
-    # stderr processing
-    subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload", virtio_driver_path, win_driver_path], stderr=open(os.devnull, "wb"))
-    umount_virtio_iso(mnt_dir)
+    # bad stderr processing
+    try:
+        subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload", virtio_driver_path, win_driver_path], stderr=open(os.devnull, "wb"))
+    except:
+        raise
+    finally:
+        umount_virtio_iso(mnt_dir)
     
 
 if __name__ == '__main__':
