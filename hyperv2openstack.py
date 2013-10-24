@@ -122,10 +122,10 @@ def merge_reg_changes(vhd_path):
     try:
         subprocess.check_call(["virt-win-reg", "--merge", vhd_path, regfile_path], stderr=open(os.devnull, "wb"))
     except:
-        os.unlink(regfile_path)
         print "Can't merge registry changes to VM image!"
         raise
-    os.unlink(regfile_path)
+    finally:
+        os.unlink(regfile_path)
 
 
 def mount_virtio_iso(virtio_iso, mnt_dir):
@@ -143,11 +143,10 @@ def umount_virtio_iso(mnt_dir):
     try:
         subprocess.check_call(["umount", mnt_dir])
     except:
-        os.rmdir(mnt_dir)
         print "Can't umount virtio ISO"
         raise
-
-    os.rmdir(mnt_dir)
+    finally:
+        os.rmdir(mnt_dir)
 
 
 def get_win_driver_ver(vm_os_ver):
