@@ -156,6 +156,8 @@ def get_win_driver_ver(vm_os_ver):
         return (win_ver['2003'], win_path['2003'])
     elif re.match(r".*2008.*", vm_os_ver):
         return (win_ver['2008'], win_path['2008'])
+    elif re.match(r".*2012.*", vm_os_ver):
+        return (win_ver['2012'], win_path['2012'])
     else:
         return False
 
@@ -182,12 +184,15 @@ if __name__ == '__main__':
     win_ver = {'XP': 'wxp',
                '2003': 'wnet',
                '2008': 'wlh',
-               '7': 'vista'}
+               '2012': 'vista',
+               '7': 'vista'
+               }
 
     # win ver to driver path mapping
     win_path = {'XP': '/WINDOWS/System32/drivers/viostor.sys',
                 '2003': '/WINDOWS/system32/drivers/viostor.sys',
                 '2008': '/Windows/System32/drivers/viostor.sys',
+                '2012': '/Windows/System32/drivers/viostor.sys',
                 '7': '/Windows/System32/drivers/viostor.sys'}
 
     req_tools = ['guestfish', 'virt-inspector', 'virt-win-reg']
@@ -209,10 +214,11 @@ if __name__ == '__main__':
             except:
                 err_msg = "This OS version (%s) isn't supported by this converter" % vm_os_ver
                 sys.exit(err_msg)
+
             merge_reg_changes(vhd_path)
             upload_viostor(vhd_path, vm_os_ver, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
         else:
             sys.exit("No path to VirtIO ISO! (--iso)")
     else:
-        err_msg = "This OS version (%s) isn't supported by this converter" % vm_os_ver
+        err_msg = "Can't find Windows on this VM or this version (%s) isn't supported by this converter" % vm_os_ver
         sys.exit(err_msg)
