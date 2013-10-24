@@ -25,10 +25,10 @@ def parse_xml():
 def get_vm_params():
     xmltree = parse_xml()
     xmlroot = xmltree.getroot()
-    vhd_name = get_vhd_name(xmlroot)
-    vm_os_ver, vm_os_arch = get_vm_os_ver(vhd_name)
+    vhd_path = get_vhd_path(xmlroot)
+    vm_os_ver, vm_os_arch = get_vm_os_ver(vhd_path)
 
-    return (get_vm_name(xmlroot), get_vm_cpu_count(xmlroot), get_vm_ram_limit(xmlroot), vhd_name, vm_os_ver, vm_os_arch)
+    return (get_vm_name(xmlroot), get_vm_cpu_count(xmlroot), get_vm_ram_limit(xmlroot), vhd_path, vm_os_ver, vm_os_arch)
 
 
 def get_vm_name(xmlroot):
@@ -43,30 +43,30 @@ def get_vm_ram_limit(xmlroot):
     return xmlroot.find('./settings/memory/bank/limit').text
 
 
-def get_vhd_name(xmlroot):
+def get_vhd_path(xmlroot):
     vhd_re = re.compile(r".*vhd$")
 
     # dont like
     for pathname in xmlroot.iter(tag='pathname'):
         if vhd_re.match(pathname.text):
-            vhd_name = ntpath.basename(pathname.text)
-            if os.path.exists(vhd_name):
-                return vhd_name
+            vhd_path = args.vhd_dir + '/' + ntpath.basename(pathname.text)
+            if os.path.exists(vhd_path):
+                return vhd_path
             else:
-                err_msg = "Can't find vhd file vhd_name"
+                err_msg = "Can't find vhd file at " + vhd_path
                 sys.exit(err_msg)
             break
 
 
-def get_vm_os_ver(vhd_name):
+def get_vm_os_ver(vhd_path):
     try:
-        vhd_info = subprocess.check_output(['virt-inspector', vhd_name], stderr=open(os.devnull, 'wb'))
+        vhd_info = subprocess.check_output(['virt-inspector', vhd_path], stderr=open(os.devnull, 'wb'))
         xmltree = ET.fromstring(vhd_info)
         return (xmltree.find('./operatingsystem/product_name').text, xmltree.find('./operatingsystem/arch').text)
     except:
         raise
 
-def merge_reg_changes(vhd_name):
+def merge_reg_changes(vhd_path):
     reg_changes = '''
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor]
 "Group"="SCSI miniport"
@@ -120,7 +120,7 @@ def merge_reg_changes(vhd_name):
     regfile.write(reg_changes)
     regfile.close()
     try:
-        subprocess.check_call(["virt-win-reg", "--merge", vhd_name, regfile_path], stderr=open(os.devnull, "wb"))
+        subprocess.check_call(["virt-win-reg", "--merge", vhd_path, regfile_path], stderr=open(os.devnull, "wb"))
     except:
         os.unlink(regfile_path)
         print "Can't merge registry changes to VM image!"
@@ -159,7 +159,7 @@ def get_win_driver_ver(vm_os_ver):
         return false
 
 
-def upload_viostor(vhd_name, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
+def upload_viostor(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
     mnt_dir = '/tmp/virtio_iso'
     mount_virtio_iso(virtio_iso, mnt_dir)
     if vm_os_arch == 'x86_64':
@@ -168,7 +168,7 @@ def upload_viostor(vhd_name, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, 
     virtio_driver_path = mnt_dir + '/' + win_driver_ver + '/' + vm_os_arch + '/viostor.sys'
     # try except here
     # stderr processing
-    subprocess.check_call(["guestfish", "-a", vhd_name, "-i", "upload", virtio_driver_path, win_driver_path], stderr=open(os.devnull, "wb"))
+    subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload", virtio_driver_path, win_driver_path], stderr=open(os.devnull, "wb"))
     umount_virtio_iso(mnt_dir)
     
 
@@ -183,11 +183,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--xml', metavar='XML', help='path to XML file of a VM', required=True)
+    parser.add_argument('--vhd_dir', metavar='VHDs dir', help='path to directory with VHD images', required=True)
     parser.add_argument('--iso', metavar='VirtIO ISO', help='path to VirtIO ISO', required=False)
     args = parser.parse_args()
 
-    vm_name, vm_cpu_count, vm_ram_limit, vhd_name, vm_os_ver, vm_os_arch = get_vm_params()
-    
+    vm_name, vm_cpu_count, vm_ram_limit, vhd_path, vm_os_ver, vm_os_arch = get_vm_params()
+
     win_re = re.compile(r".*[wW]indows.*")
     if win_re.match(vm_os_ver):
         if args.iso:
@@ -196,8 +197,8 @@ if __name__ == '__main__':
             except:
                 err_msg = "This OS version (%s) isn't supported by this converter" % vm_os_ver
                 sys.exit(err_msg)
-            merge_reg_changes(vhd_name)
-            upload_viostor(vhd_name, vm_os_ver, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
+            merge_reg_changes(vhd_path)
+            upload_viostor(vhd_path, vm_os_ver, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
         else:
             sys.exit("No path to VirtIO ISO! (--iso)")
     else:
