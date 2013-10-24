@@ -153,28 +153,42 @@ def umount_virtio_iso(mnt_dir):
 
 def get_win_driver_ver(vm_os_ver):
     if re.match(r".*2003.*", vm_os_ver):
-        return (win_ver['2003'], win_path['2003'])
+        return win_ver['2003'], win_path['2003']
     elif re.match(r".*2008.*", vm_os_ver):
-        return (win_ver['2008'], win_path['2008'])
+        return win_ver['2008'], win_path['2008']
     else:
         return False
 
 
-def upload_viostor(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
+def upload_drivers(vhd_path, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
     mnt_dir = '/tmp/virtio_iso'
     mount_virtio_iso(virtio_iso, mnt_dir)
     if vm_os_arch == 'x86_64':
         vm_os_arch = 'amd64'
 
-    virtio_driver_path = mnt_dir + '/' + win_driver_ver + '/' + vm_os_arch + '/viostor.sys'
-    # bad stderr processing
     try:
-        subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload", virtio_driver_path, win_driver_path], stderr=open(os.devnull, "wb"))
+        upload_viostor(vhd_path, mnt_dir, win_driver_ver, vm_os_arch, win_driver_path)
+        # should leave only needed drivers here
+        upload_other_drivers(vhd_path, mnt_dir)
     except:
         raise
     finally:
         umount_virtio_iso(mnt_dir)
-    
+
+
+def upload_viostor(vhd_path, mnt_dir, win_driver_ver, vm_os_arch, win_driver_path):
+    virtio_driver_path = mnt_dir + '/' + win_driver_ver + '/' + vm_os_arch + '/viostor.sys'
+    # bad stderr processing
+    subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload", virtio_driver_path, win_driver_path],
+                          stderr=open(os.devnull, "wb"))
+
+
+def upload_other_drivers(vhd_path, mnt_dir):
+    virtio_driver_path = mnt_dir + '/*'
+    subprocess.call(["guestfish", "-a", vhd_path, "-i", "mkdir", '/VirtIO'], stderr=open(os.devnull, "wb"))
+    upload_command = "guestfish -a " + vhd_path + " -i copy-in " + virtio_driver_path + " /VirtIO"
+    subprocess.check_call(upload_command, shell=True, stderr=open(os.devnull, "wb"))
+
 
 if __name__ == '__main__':
 
@@ -210,7 +224,7 @@ if __name__ == '__main__':
                 err_msg = "This OS version (%s) isn't supported by this converter" % vm_os_ver
                 sys.exit(err_msg)
             merge_reg_changes(vhd_path)
-            upload_viostor(vhd_path, vm_os_ver, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
+            upload_drivers(vhd_path, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
         else:
             sys.exit("No path to VirtIO ISO! (--iso)")
     else:
