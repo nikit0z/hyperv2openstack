@@ -9,11 +9,13 @@ import subprocess
 import os
 import distutils.spawn 
 
+
 def check_req_tools(req_tools):
     for tool in req_tools:
             if distutils.spawn.find_executable(tool) is None:
-                err_msg = tool +  " is not installed or not in PATH"
+                err_msg = tool + " is not installed or not in PATH"
                 sys.exit(err_msg)
+
 
 def parse_xml():
     xmlpath = args.xml
@@ -28,7 +30,7 @@ def get_vm_params():
     vhd_path = get_vhd_path(xmlroot)
     vm_os_ver, vm_os_arch = get_vm_os_ver(vhd_path)
 
-    return (get_vm_name(xmlroot), get_vm_cpu_count(xmlroot), get_vm_ram_limit(xmlroot), vhd_path, vm_os_ver, vm_os_arch)
+    return get_vm_name(xmlroot), get_vm_cpu_count(xmlroot), get_vm_ram_limit(xmlroot), vhd_path, vm_os_ver, vm_os_arch
 
 
 def get_vm_name(xmlroot):
@@ -55,16 +57,16 @@ def get_vhd_path(xmlroot):
             else:
                 err_msg = "Can't find vhd file at " + vhd_path
                 sys.exit(err_msg)
-            break
 
 
 def get_vm_os_ver(vhd_path):
     try:
         vhd_info = subprocess.check_output(['virt-inspector', vhd_path], stderr=open(os.devnull, 'wb'))
         xmltree = ET.fromstring(vhd_info)
-        return (xmltree.find('./operatingsystem/product_name').text, xmltree.find('./operatingsystem/arch').text)
+        return xmltree.find('./operatingsystem/product_name').text, xmltree.find('./operatingsystem/arch').text
     except:
         raise
+
 
 def merge_reg_changes(vhd_path):
     reg_changes = '''
@@ -155,7 +157,7 @@ def get_win_driver_ver(vm_os_ver):
     elif re.match(r".*2008.*", vm_os_ver):
         return (win_ver['2008'], win_path['2008'])
     else:
-        return false
+        return False
 
 
 def upload_viostor(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
@@ -176,8 +178,17 @@ def upload_viostor(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, 
 
 if __name__ == '__main__':
 
-    win_ver = {'XP':'wxp', '2003':'wnet', '2008':'wlh', '7':'vista'} # win ver to virtio driver name mapping (VirtIO iso)
-    win_path = {'XP':'TBD', '2003':'/WINDOWS/system32/drivers/viostor.sys', '2008':'/Windows/System32/drivers/viostor.sys', '7':'TBD'} # win ver to driver path mapping
+    # win ver to virtio driver name mapping (VirtIO iso)
+    win_ver = {'XP': 'wxp',
+               '2003': 'wnet',
+               '2008': 'wlh',
+               '7': 'vista'}
+
+    # win ver to driver path mapping
+    win_path = {'XP': '/WINDOWS/System32/drivers/viostor.sys',
+                '2003': '/WINDOWS/system32/drivers/viostor.sys',
+                '2008': '/Windows/System32/drivers/viostor.sys',
+                '7': '/Windows/System32/drivers/viostor.sys'}
 
     req_tools = ['guestfish', 'virt-inspector', 'virt-win-reg']
 
