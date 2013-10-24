@@ -192,8 +192,6 @@ if __name__ == '__main__':
 
     req_tools = ['guestfish', 'virt-inspector', 'virt-win-reg']
 
-    check_req_tools(req_tools)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--xml', metavar='XML', help='path to XML file of a VM', required=True)
     parser.add_argument('--vhd_dir', metavar='VHDs dir', help='path to directory with VHD images', required=True)
@@ -204,6 +202,7 @@ if __name__ == '__main__':
 
     win_re = re.compile(r".*[wW]indows.*")
     if win_re.match(vm_os_ver):
+        check_req_tools(req_tools)
         if args.iso:
             try:
                 win_driver_ver, win_driver_path = get_win_driver_ver(vm_os_ver)
