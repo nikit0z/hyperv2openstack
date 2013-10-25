@@ -68,36 +68,50 @@ def get_vm_os_ver(vhd_path):
         raise
 
 
+def get_device_path(vhd_path):
+    reg_path = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
+    reg_key = 'DevicePath'
+    try:
+        return subprocess.check_output(['virt-win-reg', vhd_path, reg_path, reg_key], stderr=open(os.devnull, "wb")).rstrip().encode('string-escape')
+    except:
+        raise
+
+
 def merge_reg_changes(vhd_path):
+    device_path = get_device_path(vhd_path) + ';C:\\\VirtIO'
+
     reg_changes = '''
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor]
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]
+"DevicePath"="%s"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor]
 "Group"="SCSI miniport"
-"ImagePath"=hex(2):73,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,64,\
-  00,72,00,69,00,76,00,65,00,72,00,73,00,5c,00,76,00,69,00,6f,00,73,00,74,00,6f,\
+"ImagePath"=hex(2):73,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,64,\\
+  00,72,00,69,00,76,00,65,00,72,00,73,00,5c,00,76,00,69,00,6f,00,73,00,74,00,6f,\\
   00,72,00,2e,00,73,00,79,00,73,00,00,00
 "ErrorControl"=dword:00000001
 "Start"=dword:00000000
 "Type"=dword:00000001
 "Tag"=dword:00000040
 
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor\Parameters]
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters]
 "BusType"=dword:00000001
 
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor\Parameters\MaxTransferSize]
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\MaxTransferSize]
 "ParamDesc"="Maximum Transfer Size"
 "type"="enum"
 "default"="0"
 
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor\Parameters\MaxTransferSize\enum]
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\MaxTransferSize\enum]
 "0"="64  KB"
 "1"="128 KB"
 "2"="256 KB"
 
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor\Parameters\PnpInterface]
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\PnpInterface]
 "5"=dword:00000001
 
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\viostor\Enum]
-"0"="PCI\\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00\\3&13c0b0c5&2&20"
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Enum]
+"0"="PCI\\\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00\\\\3&13c0b0c5&2&20"
 "Count"=dword:00000001
 "NextInstance"=dword:00000001
 
@@ -116,15 +130,17 @@ def merge_reg_changes(vhd_path):
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\CriticalDeviceDatabase\PCI#VEN_1AF4&DEV_1001&SUBSYS_00021AF4]
 "ClassGUID"="{4D36E97B-E325-11CE-BFC1-08002BE10318}"
 "Service"="viostor"
-'''
+''' % device_path
+
     regfile_path = '/tmp/regfile'
     regfile = open(regfile_path, 'w')
     regfile.write(reg_changes)
     regfile.close()
+
     try:
         subprocess.check_call(["virt-win-reg", "--merge", vhd_path, regfile_path], stderr=open(os.devnull, "wb"))
     except:
-        print "Can't merge registry changes to VM image!"
+        print("Can't merge registry changes to VM image!")
         raise
     finally:
         os.unlink(regfile_path)
@@ -137,7 +153,7 @@ def mount_virtio_iso(virtio_iso, mnt_dir):
         subprocess.check_call(["mount", "-o", "loop,ro", virtio_iso, mnt_dir])
     except:
         os.rmdir(mnt_dir)
-        print "Can't mount virtio ISO"
+        print("Can't mount virtio ISO")
         raise
 
 
@@ -145,7 +161,7 @@ def umount_virtio_iso(mnt_dir):
     try:
         subprocess.check_call(["umount", mnt_dir])
     except:
-        print "Can't umount virtio ISO"
+        print("Can't umount virtio ISO")
         raise
     finally:
         os.rmdir(mnt_dir)
@@ -195,7 +211,7 @@ if __name__ == '__main__':
     # win ver to virtio driver name mapping (VirtIO iso)
     win_ver = {'XP': 'wxp',
                '2003': 'wnet',
-               '2008': 'wlh',
+               '2008': 'win7',
                '7': 'vista'}
 
     # win ver to driver path mapping
