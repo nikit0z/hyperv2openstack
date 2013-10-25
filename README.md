@@ -20,6 +20,7 @@ For Windows VMs:
 * virt-inspector
 * guestfish
 * virt-win-reg
+* hivexget
 * virtio drivers iso
 
 
