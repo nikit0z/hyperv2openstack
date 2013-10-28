@@ -211,7 +211,7 @@ if __name__ == '__main__':
     # win ver to virtio driver name mapping (VirtIO iso)
     win_ver = {'XP': 'wxp',
                '2003': 'wnet',
-               '2008': 'win7',
+               '2008': 'wlh',
                '7': 'vista'}
 
     # win ver to driver path mapping
@@ -220,7 +220,7 @@ if __name__ == '__main__':
                 '2008': '/Windows/System32/drivers/viostor.sys',
                 '7': '/Windows/System32/drivers/viostor.sys'}
 
-    req_tools = ['guestfish', 'virt-inspector', 'virt-win-reg']
+    req_tools = ['guestfish', 'virt-inspector', 'virt-win-reg', 'hivexget']
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--xml', metavar='XML', help='path to XML file of a VM', required=True)
