@@ -125,7 +125,7 @@ def merge_reg_changes(vhd_path, vm_os_ver):
     finally:
         os.unlink(regfile_path)
 
-    firstboot_reg = os.path.dirname(sys.argv[0]) + '/firstboot.reg'
+    firstboot_reg = h2o_path + '/regs/firstboot.reg'
 
     try:
         subprocess.check_call(["virt-win-reg", "--merge", vhd_path, firstboot_reg], stderr=open(os.devnull, "wb"))
@@ -134,11 +134,11 @@ def merge_reg_changes(vhd_path, vm_os_ver):
         raise
 
     if vm_os_ver == '2012':
-        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor_2012.reg'
+        regfile_path = h2o_path + '/regs/viostor_2012.reg'
     elif vm_os_ver == '2008':
-        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor_2008.reg'
+        regfile_path = h2o_path + '/regs/viostor_2008.reg'
     else:
-        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor.reg'
+        regfile_path = h2o_path + '/regs/viostor.reg'
 
     try:
         subprocess.check_call(["virt-win-reg", "--merge", vhd_path, regfile_path], stderr=open(os.devnull, "wb"))
@@ -213,7 +213,7 @@ def upload_other_drivers(vhd_path, mnt_dir, win_driver_ver, vm_os_ver, vm_os_arc
 
 
 def upload_cert(vhd_path):
-    cert_path = os.path.dirname(sys.argv[0]) + '/redhat.cer'
+    cert_path = h2o_path + '/execs/redhat.cer'
     try:
         subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload",
                               cert_path, "/VirtIO/redhat.cer"], stderr=open(os.devnull, "wb"))
@@ -235,7 +235,7 @@ def upload_exec(vm_os_ver, vm_os_arch, vhd_path):
 
     for file in req_exec:
         try:
-            file_path = os.path.dirname(sys.argv[0]) + '/' + file
+            file_path = h2o_path + '/execs/' + file
             upload_path = "/VirtIO/" + req_exec[file]
             subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload",
                                    file_path, upload_path], stderr=open(os.devnull, "wb"))
@@ -267,6 +267,8 @@ if __name__ == '__main__':
     parser.add_argument('--vhd_dir', metavar='VHDs dir', help='path to directory with VHD images', required=True)
     parser.add_argument('--iso', metavar='VirtIO ISO', help='path to VirtIO ISO', required=True)
     args = parser.parse_args()
+
+    h2o_path = os.path.dirname(sys.argv[0])
 
     check_req_tools()
     convert()
