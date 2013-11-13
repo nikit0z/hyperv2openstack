@@ -13,11 +13,28 @@ import distutils.spawn
 def convert():
     vm_name, vm_cpu_count, vm_ram_limit, vhd_path, vm_os_ver, vm_os_arch = get_vm_params()
 
+    print("\nVM Info:")
+    print("Name: %s") % vm_name
+    print("VHD:  %s") % vhd_path
+    print("CPU:  %s") % vm_cpu_count
+    print("RAM:  %s") % vm_ram_limit
+    print("OS:   %s") % vm_os_ver
+    print("Arch: %s\n") % vm_os_arch
+    
+    if not args.y:
+        yes_no()
+
     merge_reg_changes(vhd_path, vm_os_ver)
     upload_drivers(vhd_path, vm_os_ver, vm_os_arch, args.iso, win_ver[vm_os_ver], win_path[vm_os_ver])
     upload_cert(vhd_path)
     upload_exec(vm_os_ver, vm_os_arch, vhd_path)
+    print("Converted")
 
+def yes_no():
+    answer = raw_input("Convert? (y/n)")
+    if answer != "yes" and answer != "y":
+        sys.exit("Not converted")
+    
 
 def check_req_tools():
     for tool in req_tools:
@@ -266,6 +283,7 @@ if __name__ == '__main__':
     parser.add_argument('--xml', metavar='XML', help='path to XML file of a VM', required=True)
     parser.add_argument('--vhd_dir', metavar='VHDs dir', help='path to directory with VHD images', required=True)
     parser.add_argument('--iso', metavar='VirtIO ISO', help='path to VirtIO ISO', required=True)
+    parser.add_argument('-y', action='store_true')
     args = parser.parse_args()
 
     h2o_path = os.path.dirname(sys.argv[0])
