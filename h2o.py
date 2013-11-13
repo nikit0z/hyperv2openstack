@@ -3,14 +3,23 @@
 import sys
 import argparse
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as Et
 import ntpath
 import subprocess
 import os
-import distutils.spawn 
+import distutils.spawn
 
 
-def check_req_tools(req_tools):
+def convert():
+    vm_name, vm_cpu_count, vm_ram_limit, vhd_path, vm_os_ver, vm_os_arch = get_vm_params()
+
+    merge_reg_changes(vhd_path, vm_os_ver)
+    upload_drivers(vhd_path, vm_os_ver, vm_os_arch, args.iso, win_ver[vm_os_ver], win_path[vm_os_ver])
+    upload_cert(vhd_path)
+    upload_exec(vm_os_ver, vm_os_arch, vhd_path)
+
+
+def check_req_tools():
     for tool in req_tools:
             if distutils.spawn.find_executable(tool) is None:
                 err_msg = tool + " is not installed or not in PATH"
@@ -19,8 +28,7 @@ def check_req_tools(req_tools):
 
 def parse_xml():
     xmlpath = args.xml
-    xmltree = ET.parse(xmlpath)
-
+    xmltree = Et.parse(xmlpath)
     return xmltree
 
 
@@ -29,7 +37,6 @@ def get_vm_params():
     xmlroot = xmltree.getroot()
     vhd_path = get_vhd_path(xmlroot)
     vm_os_ver, vm_os_arch = get_vm_os_ver(vhd_path)
-
     return get_vm_name(xmlroot), get_vm_cpu_count(xmlroot), get_vm_ram_limit(xmlroot), vhd_path, vm_os_ver, vm_os_arch
 
 
@@ -62,75 +69,48 @@ def get_vhd_path(xmlroot):
 def get_vm_os_ver(vhd_path):
     try:
         vhd_info = subprocess.check_output(['virt-inspector', vhd_path], stderr=open(os.devnull, 'wb'))
-        xmltree = ET.fromstring(vhd_info)
-        return xmltree.find('./operatingsystem/product_name').text, xmltree.find('./operatingsystem/arch').text
+        xmltree = Et.fromstring(vhd_info)
     except:
         raise
+
+    vm_os_ver = xmltree.find('./operatingsystem/product_name').text
+    vm_os_arch = xmltree.find('./operatingsystem/arch').text
+
+    if re.match(r".*[wW]indows.*2003.*", vm_os_ver):
+        vm_os_ver = '2003'
+    elif re.match(r".*[wW]indows.*2008.*", vm_os_ver):
+        vm_os_ver = '2008'
+    elif re.match(r".*[wW]indows.*2012.*", vm_os_ver):
+        vm_os_ver = '2012'
+    else:
+        err_msg = "Can't find Windows on this VM or this version (%s) isn't supported by this converter" % vm_os_ver
+        sys.exit(err_msg)
+
+    if vm_os_arch == 'x86_64':
+        vm_os_arch = 'amd64'
+    elif vm_os_arch == 'i386':
+        vm_os_arch = 'x86'
+
+    return vm_os_ver, vm_os_arch
 
 
 def get_device_path(vhd_path):
     reg_path = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion'
     reg_key = 'DevicePath'
     try:
-        return subprocess.check_output(['virt-win-reg', vhd_path, reg_path, reg_key], stderr=open(os.devnull, "wb")).rstrip().encode('string-escape')
+        return subprocess.check_output(['virt-win-reg', vhd_path, reg_path, reg_key],
+                                       stderr=open(os.devnull, "wb")).rstrip().encode('string-escape')
     except:
         raise
 
 
-def merge_reg_changes(vhd_path):
-    device_path = get_device_path(vhd_path) + ';C:\\\VirtIO'
-
+def merge_reg_changes(vhd_path, vm_os_ver):
+    device_path = 'hex(1):43,00,3a,00,5c,00,57,00,69,00,6e,00,64,00,6f,00,77,00,73,00,5c,\
+00,69,00,6e,00,66,00,3b,00,43,00,3a,00,5c,00,56,00,69,00,72,00,74,00,49,00,4f,00,00,00'
     reg_changes = '''
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]
-"DevicePath"="%s"
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor]
-"Group"="SCSI miniport"
-"ImagePath"=hex(2):73,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,64,\\
-  00,72,00,69,00,76,00,65,00,72,00,73,00,5c,00,76,00,69,00,6f,00,73,00,74,00,6f,\\
-  00,72,00,2e,00,73,00,79,00,73,00,00,00
-"ErrorControl"=dword:00000001
-"Start"=dword:00000000
-"Type"=dword:00000001
-"Tag"=dword:00000040
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters]
-"BusType"=dword:00000001
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\MaxTransferSize]
-"ParamDesc"="Maximum Transfer Size"
-"type"="enum"
-"default"="0"
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\MaxTransferSize\enum]
-"0"="64  KB"
-"1"="128 KB"
-"2"="256 KB"
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Parameters\PnpInterface]
-"5"=dword:00000001
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\\viostor\Enum]
-"0"="PCI\\\VEN_1AF4&DEV_1001&SUBSYS_00021AF4&REV_00\\\\3&13c0b0c5&2&20"
-"Count"=dword:00000001
-"NextInstance"=dword:00000001
-
-;
-; Add viostor to the critical device database
-;
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\CriticalDeviceDatabase\PCI#VEN_1AF4&DEV_1001&SUBSYS_00000000]
-"ClassGUID"="{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-"Service"="viostor"
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\CriticalDeviceDatabase\PCI#VEN_1AF4&DEV_1001&SUBSYS_00020000]
-"ClassGUID"="{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-"Service"="viostor"
-
-[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\CriticalDeviceDatabase\PCI#VEN_1AF4&DEV_1001&SUBSYS_00021AF4]
-"ClassGUID"="{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-"Service"="viostor"
-''' % device_path
+"DevicePath"=%s
+    ''' % device_path
 
     regfile_path = '/tmp/regfile'
     regfile = open(regfile_path, 'w')
@@ -144,6 +124,27 @@ def merge_reg_changes(vhd_path):
         raise
     finally:
         os.unlink(regfile_path)
+
+    firstboot_reg = os.path.dirname(sys.argv[0]) + '/firstboot.reg'
+
+    try:
+        subprocess.check_call(["virt-win-reg", "--merge", vhd_path, firstboot_reg], stderr=open(os.devnull, "wb"))
+    except:
+        print("Can't merge registry changes to VM image!")
+        raise
+
+    if vm_os_ver == '2012':
+        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor_2012.reg'
+    elif vm_os_ver == '2008':
+        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor_2008.reg'
+    else:
+        regfile_path = os.path.dirname(sys.argv[0]) + '/viostor.reg'
+
+    try:
+        subprocess.check_call(["virt-win-reg", "--merge", vhd_path, regfile_path], stderr=open(os.devnull, "wb"))
+    except:
+        print("Can't merge registry changes to VM image!")
+        raise
 
 
 def mount_virtio_iso(virtio_iso, mnt_dir):
@@ -178,16 +179,13 @@ def get_win_driver_ver(vm_os_ver):
         return False
 
 
-def upload_drivers(vhd_path, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
+def upload_drivers(vhd_path, vm_os_ver, vm_os_arch, virtio_iso, win_driver_ver, win_driver_path):
     mnt_dir = '/tmp/virtio_iso'
     mount_virtio_iso(virtio_iso, mnt_dir)
-    if vm_os_arch == 'x86_64':
-        vm_os_arch = 'amd64'
 
     try:
         upload_viostor(vhd_path, mnt_dir, win_driver_ver, vm_os_arch, win_driver_path)
-        # should leave only needed drivers here
-        upload_other_drivers(vhd_path, mnt_dir)
+        upload_other_drivers(vhd_path, mnt_dir, win_driver_ver, vm_os_ver, vm_os_arch)
     except:
         raise
     finally:
@@ -201,11 +199,48 @@ def upload_viostor(vhd_path, mnt_dir, win_driver_ver, vm_os_arch, win_driver_pat
                           stderr=open(os.devnull, "wb"))
 
 
-def upload_other_drivers(vhd_path, mnt_dir):
-    virtio_driver_path = mnt_dir + '/*'
+def upload_other_drivers(vhd_path, mnt_dir, win_driver_ver, vm_os_ver, vm_os_arch):
+    if win_driver_ver == 'wlh' or win_driver_ver == 'wnet':
+        virtio_driver_path = mnt_dir + '/xp/' + vm_os_arch + '/netkvm*'
+    else:
+        virtio_driver_path = mnt_dir + '/' + win_driver_ver + '/' + vm_os_arch + '/netkvm*'
+    systemroot = win_path[vm_os_ver].split('/')[1]
+    subprocess.call(["guestfish", "-a", vhd_path, "-i", "mkdir", '/' + systemroot + '/inf/VirtIO'],
+                    stderr=open(os.devnull, "wb"))
     subprocess.call(["guestfish", "-a", vhd_path, "-i", "mkdir", '/VirtIO'], stderr=open(os.devnull, "wb"))
     upload_command = "guestfish -a " + vhd_path + " -i copy-in " + virtio_driver_path + " /VirtIO"
     subprocess.check_call(upload_command, shell=True, stderr=open(os.devnull, "wb"))
+
+
+def upload_cert(vhd_path):
+    cert_path = os.path.dirname(sys.argv[0]) + '/redhat.cer'
+    try:
+        subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload",
+                              cert_path, "/VirtIO/redhat.cer"], stderr=open(os.devnull, "wb"))
+    except:
+        print("Can't upload certificate")
+        raise
+
+
+def upload_exec(vm_os_ver, vm_os_arch, vhd_path):
+    req_exec = {'srvany.exe': 'srvany.exe'}
+
+    # need this workaround because of weird win2003 device installation behavior in my env
+    if vm_os_ver == '2003':
+        devcon = 'devcon_' + vm_os_arch + '.exe'
+        req_exec['firstboot_2003.bat'] = 'firstboot.bat'
+        req_exec[devcon] = 'devcon.exe'
+    else:
+        req_exec['firstboot.bat'] = 'firstboot.bat'
+
+    for file in req_exec:
+        try:
+            file_path = os.path.dirname(sys.argv[0]) + '/' + file
+            upload_path = "/VirtIO/" + req_exec[file]
+            subprocess.check_call(["guestfish", "-a", vhd_path, "-i", "upload",
+                                   file_path, upload_path], stderr=open(os.devnull, "wb"))
+        except:
+            raise
 
 
 if __name__ == '__main__':
@@ -214,14 +249,14 @@ if __name__ == '__main__':
     win_ver = {'XP': 'wxp',
                '2003': 'wnet',
                '2008': 'wlh',
-               '2012': 'vista',
-               '7': 'vista'
+               '2012': 'win7',
+               '7': 'win7'
                }
 
     # win ver to driver path mapping
     win_path = {'XP': '/WINDOWS/System32/drivers/viostor.sys',
                 '2003': '/WINDOWS/system32/drivers/viostor.sys',
-                '2008': '/Windows/System32/drivers/viostor.sys',
+                "2008": "/Windows/System32/drivers/viostor.sys",
                 '2012': '/Windows/System32/drivers/viostor.sys',
                 '7': '/Windows/System32/drivers/viostor.sys'}
 
@@ -230,25 +265,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--xml', metavar='XML', help='path to XML file of a VM', required=True)
     parser.add_argument('--vhd_dir', metavar='VHDs dir', help='path to directory with VHD images', required=True)
-    parser.add_argument('--iso', metavar='VirtIO ISO', help='path to VirtIO ISO', required=False)
+    parser.add_argument('--iso', metavar='VirtIO ISO', help='path to VirtIO ISO', required=True)
     args = parser.parse_args()
 
-    vm_name, vm_cpu_count, vm_ram_limit, vhd_path, vm_os_ver, vm_os_arch = get_vm_params()
-
-    win_re = re.compile(r".*[wW]indows.*")
-    if win_re.match(vm_os_ver):
-        check_req_tools(req_tools)
-        if args.iso:
-            try:
-                win_driver_ver, win_driver_path = get_win_driver_ver(vm_os_ver)
-            except:
-                err_msg = "This OS version (%s) isn't supported by this converter" % vm_os_ver
-                sys.exit(err_msg)
-
-            merge_reg_changes(vhd_path)
-            upload_drivers(vhd_path, vm_os_arch, args.iso, win_driver_ver, win_driver_path)
-        else:
-            sys.exit("No path to VirtIO ISO! (--iso)")
-    else:
-        err_msg = "Can't find Windows on this VM or this version (%s) isn't supported by this converter" % vm_os_ver
-        sys.exit(err_msg)
+    check_req_tools()
+    convert()
