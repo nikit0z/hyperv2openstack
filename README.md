@@ -5,7 +5,8 @@
 WTF?
 ----
 
-This is the tool to convert hyper-v VMs to "openstack ready" VMs. By "converting" I mean installing VirtIO drivers into a vhd image of a VM. Linux supports virtio by default so basically this thing is for Windows VMs
+This is the tool to convert hyper-v VMs to "openstack ready" VMs. By "converting" I mean installing VirtIO drivers into a vhd image of a VM. Linux supports virtio by default so basically this thing is for Windows VMs.
+Ideas was taken from great redhat virt-v2v tool.
 
 Requirements
 ------------
@@ -21,9 +22,21 @@ For Windows VMs:
 * guestfish
 * virt-win-reg
 * hivexget
-* virtio drivers iso
+* virtio drivers iso (0.1.52+)
 
 
 Examples
 --------
-```hyperv2openstack.py --xml /home/hyper-v/xml/vm.xml --vhd_dir /home/hyper-v/vhd/ --iso /home/hyper-v/virtio-win-0.1-65.iso```
+Single VM:
+```
+./h2o.py --xml /home/hyper-v/xml/vm.xml --vhd_dir /home/hyper-v/vhd/ \
+--iso /home/hyper-v/virtio-win-0.1-65.iso
+```
+
+
+Many VMs:
+```
+for i in `find /home/hyper-v/xml/ -name '*.xml'`; \
+do ./h2o.py --xml $i --vhd_dir /home/hyper-v/vhd/ \
+--iso /home/hyper-v/virtio-win-0.1-65.iso ; done
+```
