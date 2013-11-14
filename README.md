@@ -2,7 +2,7 @@
 
 !!! Be sure you've backed up your vhd images before running this script.
 
-WTF?
+Introduction
 ----
 
 This is the tool to convert hyper-v VMs to "openstack ready" VMs. By "converting" I mean installing VirtIO drivers into a vhd image of a VM. Linux supports virtio by default so basically this thing is for Windows VMs.
@@ -23,6 +23,12 @@ For Windows VMs:
 * virt-win-reg
 * hivexget
 * virtio drivers iso (0.1.52+)
+
+Supported VM OS versions
+----------------------
+* 2003
+* 2008
+* 2012
 
 
 Examples
